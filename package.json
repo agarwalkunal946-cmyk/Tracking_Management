@@ -1,0 +1,20 @@
+{
+  "name": "routeflow-delivery-tracking",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -n API,WEB -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w server && npm run build -w client",
+    "start": "npm run start -w server",
+    "db:setup": "npm run db:setup -w server",
+    "db:seed": "npm run db:seed -w server",
+    "db:clear-data": "npm run db:clear-data -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}
