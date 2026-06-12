@@ -535,14 +535,15 @@ td strong { color: #313234; }
   border-radius: 12px !important;
   box-shadow: 0 12px 32px rgba(30, 31, 34, .14) !important;
 }
-.routeflow-toast [data-content] { min-width: 0; }
+.routeflow-toast [data-content] { min-width: 0; overflow: visible; }
 .routeflow-toast-title {
   display: block;
-  overflow: hidden;
+  overflow: visible;
   color: inherit;
   font: 700 12px var(--font-heading);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  text-overflow: clip;
+  white-space: normal;
 }
 .routeflow-toast-icon { width: 18px !important; height: 18px !important; }
 .routeflow-toast-close {

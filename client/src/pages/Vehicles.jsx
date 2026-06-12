@@ -5,7 +5,7 @@ import { api } from "../api";
 import { EmptyState, Modal, PageLoader, SecretInput, StatusPill } from "../components/UI";
 import { notify } from "../notify";
 import { numericInput, pinSchema, validateForm, vehicleFormSchema } from "../validation";
-const blank = { plateNumber: "", label: "", itemSize: "", amount: "", receiptSerialNo: "", tripCounter: 0, receiptCounter: 0, active: true };
+const blank = { plateNumber: "", label: "", itemSize: "", amount: "", receiptSerialNo: "", tripCounter: "0", receiptCounter: "0", active: true };
 function Vehicles() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -70,8 +70,8 @@ function VehicleModal({ open, vehicle, onClose, onSaved }) {
       itemSize: vehicle.itemSize ?? "",
       amount: vehicle.amount ?? "",
       receiptSerialNo: vehicle.receiptSerialNo ?? "",
-      tripCounter: vehicle.tripCounter,
-      receiptCounter: vehicle.receiptCounter,
+      tripCounter: String(vehicle.tripCounter ?? 0),
+      receiptCounter: String(vehicle.receiptCounter ?? 0),
       active: vehicle.active
     } : blank);
   }, [open, vehicle]);
@@ -97,13 +97,13 @@ function VehicleModal({ open, vehicle, onClose, onSaved }) {
         <label className="field"><span>Plate number</span><input minLength={2} maxLength={30} value={form.plateNumber} onChange={(event) => setForm({ ...form, plateNumber: event.target.value.toUpperCase() })} placeholder="Enter plate number" required /></label>
         <label className="field"><span>Vehicle label</span><input maxLength={80} value={form.label} onChange={(event) => setForm({ ...form, label: event.target.value })} placeholder="Vehicle type or name" /></label>
         <div className="form-row">
-          <label className="field"><span>Item size / liters</span><input type="number" min="1" step="1" value={form.itemSize} onChange={(event) => setForm({ ...form, itemSize: event.target.value === "" ? "" : Number(event.target.value) })} required /></label>
-          <label className="field"><span>Amount (KES)</span><input type="number" min="1" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value === "" ? "" : Number(event.target.value) })} required /></label>
+          <label className="field"><span>Item size / liters</span><input type="number" min="1" step="1" value={form.itemSize} onChange={(event) => setForm({ ...form, itemSize: event.target.value })} required /></label>
+          <label className="field"><span>Amount (KES)</span><input type="number" min="1" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required /></label>
         </div>
         <label className="field"><span>Receipt serial no</span><input maxLength={30} value={form.receiptSerialNo} onChange={(event) => setForm({ ...form, receiptSerialNo: event.target.value.toUpperCase() })} placeholder="KBU1" required /></label>
         <div className="form-row">
-          <label className="field"><span>{vehicle ? "Trip counter" : "Starting trip no."}</span><input type="number" min="0" step="1" value={form.tripCounter} onChange={(event) => setForm({ ...form, tripCounter: event.target.value === "" ? 0 : Number(event.target.value) })} required /></label>
-          <label className="field"><span>{vehicle ? "Receipt counter" : "Starting receipt no."}</span><input type="number" min="0" step="1" value={form.receiptCounter} onChange={(event) => setForm({ ...form, receiptCounter: event.target.value === "" ? 0 : Number(event.target.value) })} required /></label>
+          <label className="field"><span>{vehicle ? "Trip counter" : "Starting trip no."}</span><input type="number" min="0" step="1" value={form.tripCounter} onChange={(event) => setForm({ ...form, tripCounter: event.target.value })} required /></label>
+          <label className="field"><span>{vehicle ? "Receipt counter" : "Starting receipt no."}</span><input type="number" min="0" step="1" value={form.receiptCounter} onChange={(event) => setForm({ ...form, receiptCounter: event.target.value })} required /></label>
         </div>
         <p className="form-hint">Next delivery uses counter + 1. Item size, amount, and serial auto-fill when this plate is selected.</p>
         {vehicle && <label className="toggle-row"><div><strong>Active vehicle</strong><span>Available for new deliveries</span></div><input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} /></label>}

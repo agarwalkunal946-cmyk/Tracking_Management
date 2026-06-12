@@ -57,10 +57,19 @@ if (existsSync(path.join(publicDir, "index.html"))) {
   app.get("/{*splat}", (_req, res) => res.sendFile(path.join(publicDir, "index.html")));
 }
 
+function duplicateMessage(error) {
+  const keys = Object.keys(error?.keyPattern || {});
+  if (keys.includes("plateNumber")) return "Plate number already exists. Open the existing vehicle or use a different plate number.";
+  if (keys.includes("name")) return "Client name already exists. Open the existing client or use a different client name.";
+  if (keys.includes("email")) return "Email already exists. Use a different email or sign in with the existing account.";
+  if (keys.includes("receiptNumber")) return "Receipt number already exists. Check the vehicle receipt counter and try again.";
+  if (keys.includes("vehicleId") && keys.includes("tripNumber")) return "Trip number already exists for this plate. Check the vehicle trip counter and try again.";
+  return "This record already exists. Check email, client name, plate number, receipt number, or trip counter.";
+}
+
 app.use((error, _req, res, _next) => {
-  console.error(error);
   if (error?.code === 11000) {
-    res.status(409).json({ message: "That email, client name, plate number, or receipt already exists." });
+    res.status(409).json({ message: duplicateMessage(error) });
     return;
   }
   if (error instanceof mongoose.Error.CastError) {
@@ -71,6 +80,7 @@ app.use((error, _req, res, _next) => {
     res.status(400).json({ message: error.message });
     return;
   }
+  console.error(error);
   res.status(500).json({
     message: process.env.NODE_ENV === "production" ? "Something went wrong." : error?.message || "Unexpected server error."
   });

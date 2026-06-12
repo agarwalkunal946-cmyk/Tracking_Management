@@ -53,8 +53,8 @@ const vehicleFormSchema = z.object({
   itemSize: requiredNumber("Item size", { integer: true, min: 1, minMessage: "Item size is required." }),
   amount: requiredNumber("Amount", { min: 1, minMessage: "Amount is required." }),
   receiptSerialNo: z.string().trim().min(1, "Receipt serial number is required.").max(30, "Receipt serial number is too long."),
-  tripCounter: z.number().int("Trip counter must be a whole number.").min(0, "Trip counter cannot be negative."),
-  receiptCounter: z.number().int("Receipt counter must be a whole number.").min(0, "Receipt counter cannot be negative."),
+  tripCounter: requiredNumber("Starting trip no.", { integer: true, min: 0, minMessage: "Starting trip no. cannot be negative." }),
+  receiptCounter: requiredNumber("Starting receipt no.", { integer: true, min: 0, minMessage: "Starting receipt no. cannot be negative." }),
   active: z.boolean()
 });
 
