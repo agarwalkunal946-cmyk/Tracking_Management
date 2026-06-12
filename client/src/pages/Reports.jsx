@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { BarChart3, CalendarRange, Download, FileText, Printer, Truck, UserRound } from "lucide-react";
+import { BarChart3, Building2, CalendarDays, CalendarRange, CheckCircle2, Download, Droplets, FileText, Phone, Printer, ReceiptText, Truck, UserRound, WalletCards } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useState } from "react";
@@ -46,34 +46,61 @@ function Reports() {
     if (!report) return;
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const navy = [4, 47, 98];
-    const blue = [0, 98, 185];
+    const blue = [7, 126, 201];
+    const paleBlue = [245, 249, 253];
     const green = [0, 135, 62];
     const red = [190, 35, 29];
     const settings = report.settings ?? {};
     const company = settings.companyName || "RouteFlow Logistics";
+    const reporter = [settings.reporterName, settings.reporterTitle].filter(Boolean).join(" | ");
+    const subject = reportSubject(report);
+
+    function sectionTitle(title, y) {
+      doc.setFillColor(...navy);
+      doc.roundedRect(14, y, 182, 8, 1, 1, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text(title.toUpperCase(), 18, y + 5.3);
+      return y + 8;
+    }
 
     doc.setFillColor(...navy);
     doc.rect(0, 0, 210, 31, "F");
+    doc.setFillColor(255, 255, 255);
+    doc.circle(16, 15, 8, "F");
+    doc.setFillColor(...blue);
+    doc.circle(16, 13.5, 3, "F");
+    doc.setDrawColor(...blue);
+    doc.setLineWidth(0.8);
+    doc.line(12, 18, 20, 18);
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text(company.toUpperCase(), 14, 13);
+    doc.setFontSize(15);
+    doc.text(company.toUpperCase(), 28, 12.5);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text("Water Delivery & Logistics Solutions", 14, 20);
-    if (settings.companyPhoneNumber) doc.text(`Tel: ${settings.companyPhoneNumber}`, 196, 13, { align: "right" });
+    doc.setFontSize(7.5);
+    doc.text("Water Delivery & Logistics Solutions", 28, 19);
+    if (settings.companyPhoneNumber) doc.text(`Tel: ${settings.companyPhoneNumber}`, 196, 12.5, { align: "right" });
+    doc.text("Professional delivery reporting", 196, 19, { align: "right" });
+
     doc.setFillColor(...blue);
     doc.rect(0, 31, 210, 9, "F");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.text(`${report.title.toUpperCase()}  |  ${periodText(report.period)}`, 105, 37, { align: "center" });
 
-    doc.setTextColor(20, 31, 47);
-    doc.setFontSize(11);
-    const subject = reportSubject(report);
-    doc.text(`${subject.label}: ${subject.value}`.toUpperCase(), 14, 50);
+    doc.setFillColor(...navy);
+    doc.roundedRect(14, 46, 182, 10, 1, 1, "F");
+    doc.setFillColor(...blue);
+    doc.rect(14, 55, 182, 1, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text(`${subject.label}: ${subject.value}`.toUpperCase(), 18, 52.5);
     doc.setFont("helvetica", "normal");
-    doc.text(`Period: ${periodText(report.period)}`, 196, 50, { align: "right" });
+    doc.setFontSize(7);
+    doc.text(`Period: ${periodText(report.period)}`, 192, 52.5, { align: "right" });
 
     const cards = [
       ["Total Trips", report.totalTrips, navy],
@@ -84,52 +111,54 @@ function Reports() {
     ];
     cards.forEach(([label, value, color], index) => {
       const x = 14 + index * 37;
-      doc.setDrawColor(220, 226, 235);
-      doc.roundedRect(x, 58, 34, 22, 2, 2);
+      doc.setFillColor(...(index === 4 ? [255, 247, 245] : paleBlue));
+      doc.setDrawColor(...(index === 4 ? [241, 205, 197] : [210, 224, 238]));
+      doc.roundedRect(x, 62, 34, 25, 2, 2, "FD");
+      doc.setFillColor(...(index === 3 ? [229, 246, 235] : index === 4 ? [255, 230, 225] : [229, 240, 251]));
+      doc.roundedRect(x + 13, 65, 8, 8, 2, 2, "F");
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
+      doc.setFontSize(6.2);
       doc.setTextColor(65, 78, 92);
-      doc.text(label, x + 17, 66, { align: "center" });
+      doc.text(label.toUpperCase(), x + 17, 77, { align: "center" });
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setTextColor(...color);
-      doc.text(String(value), x + 17, 74, { align: "center" });
+      doc.text(String(value), x + 17, 83, { align: "center" });
     });
 
-    let y = 88;
+    let y = 93;
     if (report.vehicleSummary?.length) {
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...navy);
-      doc.setFontSize(10);
-      doc.text("VEHICLE SUMMARY", 14, y);
+      y = sectionTitle("Vehicle Summary", y);
       autoTable(doc, {
-        startY: y + 4,
+        startY: y,
         head: [["Plate No.", "Total Trips", "Total Liters", "Total Amount (KES)"]],
         body: [
           ...report.vehicleSummary.map((row) => [row.plateNumber, row.totalTrips, `${formatNumber(row.totalLiters)} L`, formatMoney(row.totalAmount)]),
           ["TOTAL", report.totalTrips, `${formatNumber(report.totalLiters)} L`, formatMoney(report.totalAmount)]
         ],
-        headStyles: { fillColor: navy, textColor: 255 },
-        footStyles: { fillColor: navy, textColor: 255 },
-        styles: { fontSize: 8, cellPadding: 2.5 },
+        headStyles: { fillColor: blue, textColor: 255, halign: "center", fontStyle: "bold" },
+        alternateRowStyles: { fillColor: paleBlue },
+        styles: { fontSize: 7, cellPadding: 2.2, halign: "center", lineColor: [220, 228, 237], lineWidth: 0.15 },
+        margin: { left: 14, right: 14, bottom: 18 },
         didParseCell: (data) => {
-          if (data.row.index === report.vehicleSummary.length) {
+          if (data.section === "body" && data.row.index === report.vehicleSummary.length) {
             data.cell.styles.fillColor = navy;
             data.cell.styles.textColor = [255, 255, 255];
             data.cell.styles.fontStyle = "bold";
           }
         }
       });
-      y = doc.lastAutoTable.finalY + 10;
+      y = doc.lastAutoTable.finalY + 7;
     }
 
     if (report.deliveries?.length) {
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...navy);
-      doc.setFontSize(10);
-      doc.text("DELIVERY DETAILS", 14, y);
+      if (y > 245) {
+        doc.addPage();
+        y = 18;
+      }
+      y = sectionTitle("Delivery Details", y);
       autoTable(doc, {
-        startY: y + 4,
+        startY: y,
         head: [["#", "Serial", "Receipt No.", "Date", "Time", "Plate No.", "Liters", "Amount", "Balance", "Note"]],
         body: report.deliveries.map((item, index) => [
           index + 1,
@@ -143,22 +172,61 @@ function Reports() {
           formatMoney(item.balance),
           item.note || "-"
         ]),
-        headStyles: { fillColor: navy, textColor: 255 },
-        alternateRowStyles: { fillColor: [244, 248, 253] },
-        styles: { fontSize: 6.6, cellPadding: 1.7 },
-        didDrawPage: ({ pageNumber }) => {
-          doc.setFillColor(...navy);
-          doc.rect(0, 284, 210, 13, "F");
-          doc.setTextColor(255, 255, 255);
-          doc.setFontSize(7);
-          doc.text(`System Generated by ${company}`, 14, 290);
-          const reporter = [settings.reporterName, settings.reporterTitle].filter(Boolean).join(" | ");
-          if (reporter) doc.text(reporter, 14, 294);
-          doc.text(`Date: ${displayDate(new Date().toISOString())}`, 196, 290, { align: "right" });
-          doc.text(`Page ${pageNumber}`, 196, 294, { align: "right" });
-        }
+        headStyles: { fillColor: blue, textColor: 255, halign: "center", fontStyle: "bold" },
+        alternateRowStyles: { fillColor: paleBlue },
+        styles: { fontSize: 5.8, cellPadding: 1.7, halign: "center", valign: "middle", lineColor: [220, 228, 237], lineWidth: 0.12 },
+        columnStyles: {
+          0: { cellWidth: 7 }, 1: { cellWidth: 15 }, 2: { cellWidth: 17 }, 3: { cellWidth: 20 },
+          4: { cellWidth: 13 }, 5: { cellWidth: 20 }, 6: { cellWidth: 18 }, 7: { cellWidth: 20 },
+          8: { cellWidth: 20 }, 9: { cellWidth: 32 }
+        },
+        margin: { left: 14, right: 14, bottom: 20 }
       });
+      y = doc.lastAutoTable.finalY + 7;
     }
+
+    if (y > 255) {
+      doc.addPage();
+      y = 20;
+    }
+    const summaryY = Math.max(y, 244);
+    doc.setDrawColor(143, 178, 211);
+    doc.setFillColor(250, 252, 255);
+    doc.roundedRect(14, summaryY, 182, 25, 2, 2, "FD");
+    cards.forEach(([label, value, color], index) => {
+      const x = 14 + index * 36.4;
+      if (index > 0) {
+        doc.setDrawColor(215, 225, 235);
+        doc.line(x, summaryY + 4, x, summaryY + 17);
+      }
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(5.5);
+      doc.setTextColor(65, 78, 92);
+      doc.text(label.toUpperCase(), x + 18.2, summaryY + 8, { align: "center" });
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...color);
+      doc.text(String(value), x + 18.2, summaryY + 14, { align: "center" });
+    });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6);
+    doc.setTextColor(65, 78, 92);
+    doc.text(`Total Trips: ${report.totalTrips}  |  Total Liters: ${formatNumber(report.totalLiters)} L  |  Total Billed: ${formatMoney(report.totalAmount)}  |  Paid: ${formatMoney(report.amountPaid)}  |  Outstanding: ${formatMoney(report.totalBalance)}`, 105, summaryY + 21, { align: "center" });
+
+    const pageCount = doc.getNumberOfPages();
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+      doc.setPage(pageNumber);
+      doc.setFillColor(...navy);
+      doc.rect(0, 284, 210, 13, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.5);
+      doc.text(`System Generated by ${company}`, 14, 290);
+      doc.text(reporter || "Authorized delivery report", 105, 290, { align: "center" });
+      doc.text(`Date: ${displayDate(new Date().toISOString())}`, 196, 290, { align: "right" });
+      doc.text(`Page ${pageNumber} of ${pageCount}`, 196, 294, { align: "right" });
+    }
+
     doc.save(`routeflow-${report.type}-client-report.pdf`);
     notify.success("Client PDF downloaded");
   }
@@ -199,26 +267,33 @@ function Reports() {
 function ReportSheet({ report }) {
   const settings = report.settings ?? {};
   const subject = reportSubject(report);
+  const preparedBy = [settings.reporterName, settings.reporterTitle].filter(Boolean).join(" | ");
   return <div className="report-sheet water-report-sheet">
       <div className="report-brand-bar">
-        <div><strong>{settings.companyName || "RouteFlow Logistics"}</strong><span>Water Delivery & Logistics Solutions</span></div>
-        <div>{settings.companyPhoneNumber && <span>Tel: {settings.companyPhoneNumber}</span>}</div>
+        <div className="report-brand-identity">
+          <span className="report-logo"><Droplets /></span>
+          <div><strong>{settings.companyName || "RouteFlow Logistics"}</strong><span>Water Delivery & Logistics Solutions</span></div>
+        </div>
+        <div className="report-contact">
+          {settings.companyPhoneNumber && <span><Phone /> {settings.companyPhoneNumber}</span>}
+          <span><FileText /> Professional delivery reporting</span>
+        </div>
       </div>
-      <div className="report-blue-strip">{report.title} <i /> {periodText(report.period)}</div>
-      <div className="report-subject-bar"><strong>{subject.label}: {subject.value}</strong><span>Period: {periodText(report.period)}</span></div>
+      <div className="report-blue-strip"><span><FileText /> {report.title}</span><i /><span><CalendarDays /> {periodText(report.period)}</span></div>
+      <div className="report-subject-bar"><strong><Building2 /> {subject.label}: {subject.value}</strong><span><CalendarDays /> Period: {periodText(report.period)}</span></div>
       <div className="report-metrics report-metrics-five">
-        <MetricCard label="Total trips" value={report.totalTrips} />
-        <MetricCard label="Total liters" value={`${formatNumber(report.totalLiters)} L`} />
-        <MetricCard label="Total billed" value={formatMoney(report.totalAmount)} />
-        <MetricCard label="Amount paid" value={formatMoney(report.amountPaid)} tone="paid" />
-        <MetricCard label="Outstanding balance" value={formatMoney(report.totalBalance)} tone="balance" />
+        <MetricCard icon={<Truck />} label="Total trips" value={report.totalTrips} />
+        <MetricCard icon={<Droplets />} label="Total liters" value={`${formatNumber(report.totalLiters)} L`} />
+        <MetricCard icon={<ReceiptText />} label="Total billed" value={formatMoney(report.totalAmount)} />
+        <MetricCard icon={<CheckCircle2 />} label="Amount paid" value={formatMoney(report.amountPaid)} tone="paid" />
+        <MetricCard icon={<WalletCards />} label="Outstanding balance" value={formatMoney(report.totalBalance)} tone="balance" />
       </div>
-      {report.vehicleSummary && <SummaryTable title="Vehicle summary" columns={["Plate no.", "Total trips", "Total liters", "Total amount (KES)"]} rows={[
+      {report.vehicleSummary && <SummaryTable icon={<Truck />} title="Vehicle summary" columns={["Plate no.", "Total trips", "Total liters", "Total amount (KES)"]} rows={[
         ...report.vehicleSummary.map((row) => [row.plateNumber, row.totalTrips, `${formatNumber(row.totalLiters)} L`, formatMoney(row.totalAmount)]),
         ["TOTAL", report.totalTrips, `${formatNumber(report.totalLiters)} L`, formatMoney(report.totalAmount)]
       ]} totalLastRow />}
-      {report.clientSummary && report.type === "summary" && <SummaryTable title="Client summary" columns={["Client", "Total trips", "Total liters", "Total amount (KES)"]} rows={report.clientSummary.map((row) => [row.name, row.totalTrips, `${formatNumber(row.totalLiters)} L`, formatMoney(row.totalAmount)])} />}
-      {report.deliveries && <SummaryTable title="Delivery details" columns={["#", "Serial", "Receipt no.", "Date", "Time", "Plate no.", "Driver", "Staff", "Liters", "Amount (KES)", "Balance (KES)", "Note"]} internalIndexes={[6, 7]} rows={report.deliveries.map((item, index) => [
+      {report.clientSummary && report.type === "summary" && <SummaryTable icon={<Building2 />} title="Client summary" columns={["Client", "Total trips", "Total liters", "Total amount (KES)"]} rows={report.clientSummary.map((row) => [row.name, row.totalTrips, `${formatNumber(row.totalLiters)} L`, formatMoney(row.totalAmount)])} />}
+      {report.deliveries && <SummaryTable icon={<FileText />} title="Delivery details" columns={["#", "Serial", "Receipt no.", "Date", "Time", "Plate no.", "Driver", "Staff", "Liters", "Amount (KES)", "Balance (KES)", "Note"]} internalIndexes={[6, 7]} rows={report.deliveries.map((item, index) => [
         index + 1,
         item.receiptSerialNo || "-",
         item.receiptNumber,
@@ -232,14 +307,17 @@ function ReportSheet({ report }) {
         formatMoney(item.balance),
         item.note || "-"
       ])} totalLastRow={false} />}
-      <div className="report-footer-summary">
-        <MetricCard label="Total trips" value={report.totalTrips} />
-        <MetricCard label="Total liters" value={`${formatNumber(report.totalLiters)} L`} />
-        <MetricCard label="Total billed" value={formatMoney(report.totalAmount)} />
-        <MetricCard label="Paid" value={formatMoney(report.amountPaid)} tone="paid" />
-        <MetricCard label="Outstanding balance" value={formatMoney(report.totalBalance)} tone="balance" />
+      <div className="report-closing">
+        <div className="report-footer-summary">
+          <MetricCard icon={<Truck />} label="Total trips" value={report.totalTrips} />
+          <MetricCard icon={<Droplets />} label="Total liters" value={`${formatNumber(report.totalLiters)} L`} />
+          <MetricCard icon={<ReceiptText />} label="Total billed" value={formatMoney(report.totalAmount)} />
+          <MetricCard icon={<CheckCircle2 />} label="Paid" value={formatMoney(report.amountPaid)} tone="paid" />
+          <MetricCard icon={<WalletCards />} label="Outstanding balance" value={formatMoney(report.totalBalance)} tone="balance" />
+        </div>
+        <div className="report-footer-totals"><span>Total trips: <b>{report.totalTrips}</b></span><i /><span>Total liters: <b>{formatNumber(report.totalLiters)} L</b></span><i /><span>Total billed: <b>{formatMoney(report.totalAmount)}</b></span><i /><span className="paid-text">Paid: <b>{formatMoney(report.amountPaid)}</b></span><i /><span className="balance-text">Outstanding: <b>{formatMoney(report.totalBalance)}</b></span></div>
+        <div className="report-footer-line"><span><FileText /> System generated by {settings.companyName || "RouteFlow Logistics"}</span><span>{preparedBy || "Authorized delivery report"}</span><span><CalendarDays /> Date: {displayDate(new Date().toISOString())}</span></div>
       </div>
-      <div className="report-footer-line"><span>System Generated by {settings.companyName || "RouteFlow Logistics"}</span><span>{[settings.reporterName, settings.reporterTitle].filter(Boolean).join(" | ")}</span><span>Date: {displayDate(new Date().toISOString())}</span></div>
     </div>;
 }
 
@@ -250,16 +328,19 @@ function reportSubject(report) {
   return { label: "Report", value: "Grand summary" };
 }
 
-function MetricCard({ label, value, tone = "default" }) {
-  return <div className={`metric-card ${tone}`}><span>{label}</span><strong>{value}</strong></div>;
+function MetricCard({ icon, label, value, tone = "default" }) {
+  return <div className={`metric-card ${tone}`}>
+      {icon && <span className="metric-icon">{icon}</span>}
+      <div className="metric-copy"><span>{label}</span><strong>{value}</strong></div>
+    </div>;
 }
 
 function ReportTypeButton({ active, onClick, icon, label }) {
   return <button type="button" className={active ? "active" : ""} onClick={onClick}>{icon}<span>{label}</span></button>;
 }
-function SummaryTable({ title, columns, rows, internalIndexes = [], totalLastRow = false }) {
+function SummaryTable({ icon, title, columns, rows, internalIndexes = [], totalLastRow = false }) {
   return <div className="summary-section">
-      <h4>{title}</h4>
+      <h4>{icon}{title}</h4>
       <div className="table-scroll"><table><thead><tr>{columns.map((column, index) => <th className={internalIndexes.includes(index) ? "internal-only" : ""} key={column}>{column}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr className={totalLastRow && rowIndex === rows.length - 1 ? "total-row" : ""} key={rowIndex}>{row.map((cell, cellIndex) => <td className={internalIndexes.includes(cellIndex) ? "internal-only" : ""} key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>
     </div>;
 }
