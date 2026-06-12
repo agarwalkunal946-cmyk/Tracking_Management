@@ -2,10 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import { audit } from "../lib/audit.js";
 import { compareSecret } from "../lib/auth.js";
-import { dateFilter } from "../lib/dates.js";
-import { deliveryPopulation, escapeRegex } from "../lib/documents.js";
-import { objectIdSchema, parseDateRange, pinSchema } from "../lib/validation.js";
-import { Client, Delivery, Setting, User, Vehicle } from "../models/index.js";
+import { buildDeliveryQuery, deliveryFilterOptions, deliverySummary, parseDeliveryFilters } from "../lib/deliveryFilters.js";
+import { deliveryPopulation } from "../lib/documents.js";
+import { objectIdSchema, pinSchema } from "../lib/validation.js";
+import { Client, Delivery, Setting, Vehicle } from "../models/index.js";
 import { requireAdmin, requireAuth } from "../middleware/auth.js";
 
 export const deliveriesRouter = Router();
@@ -33,75 +33,38 @@ const editDeliverySchema = z.object({
 deliveriesRouter.get("/", async (req, res) => {
   const parsedQuery = z.object({
     page: z.coerce.number().int().positive().optional(),
-    pageSize: z.coerce.number().int().min(10).max(100).optional(),
-    search: z.string().trim().max(100).optional(),
-    clientId: objectIdSchema.optional(),
-    vehicleId: objectIdSchema.optional(),
-    receipt: z.coerce.number().int().positive().optional()
+    pageSize: z.coerce.number().int().min(10).max(100).optional()
   }).safeParse({
     page: req.query.page || undefined,
-    pageSize: req.query.pageSize || undefined,
-    search: req.query.search || undefined,
-    clientId: req.query.clientId || undefined,
-    vehicleId: req.query.vehicleId || undefined,
-    receipt: req.query.receipt || undefined
+    pageSize: req.query.pageSize || undefined
   });
-  const parsedRange = parseDateRange(req.query);
-  if (!parsedQuery.success || !parsedRange.success) {
+  const parsedFilters = parseDeliveryFilters(req.query);
+  if (!parsedQuery.success || !parsedFilters.success) {
     res.status(400).json({
-      message: parsedQuery.error?.issues[0]?.message || parsedRange.error?.issues[0]?.message || "Invalid delivery filters."
+      message: parsedQuery.error?.issues[0]?.message || parsedFilters.message || "Invalid delivery filters."
     });
     return;
   }
 
   const page = parsedQuery.data.page ?? 1;
   const pageSize = parsedQuery.data.pageSize ?? 25;
-  const search = parsedQuery.data.search ?? "";
-  const { clientId, vehicleId, receipt } = parsedQuery.data;
-  const { from, to } = parsedRange.data;
+  const query = await buildDeliveryQuery(parsedFilters.data);
 
-  const query = {
-    ...(clientId ? { clientId } : {}),
-    ...(vehicleId ? { vehicleId } : {}),
-    ...(receipt ? { receiptNumber: receipt } : {}),
-    ...(dateFilter(from, to) ? { deliveryDate: dateFilter(from, to) } : {})
-  };
-
-  if (search) {
-    const pattern = new RegExp(escapeRegex(search), "i");
-    const [clients, vehicles, users] = await Promise.all([
-      Client.find({ name: pattern }).select("_id"),
-      Vehicle.find({ $or: [{ plateNumber: pattern }, { label: pattern }, { receiptSerialNo: pattern }] }).select("_id"),
-      User.find({ name: pattern }).select("_id")
-    ]);
-    query.$or = [
-      { clientId: { $in: clients.map((item) => item._id) } },
-      { vehicleId: { $in: vehicles.map((item) => item._id) } },
-      { createdById: { $in: users.map((item) => item._id) } },
-      { driverName: pattern },
-      { staffName: pattern },
-      { receiptSerialNo: pattern },
-      { note: pattern },
-      ...(/^\d+$/.test(search) ? [
-        { receiptNumber: Number(search) },
-        { tripNumber: Number(search) },
-        { itemSize: Number(search) },
-        { amount: Number(search) },
-        { balance: Number(search) }
-      ] : [])
-    ];
-  }
-
-  const [deliveries, total] = await Promise.all([
+  const [deliveries, total, summary] = await Promise.all([
     Delivery.find(query)
       .populate(deliveryPopulation)
       .sort({ deliveryDate: -1, createdAt: -1 })
       .skip((page - 1) * pageSize)
       .limit(pageSize),
-    Delivery.countDocuments(query)
+    Delivery.countDocuments(query),
+    deliverySummary(query)
   ]);
 
-  res.json({ deliveries, total, page, pageSize, pages: Math.ceil(total / pageSize) });
+  res.json({ deliveries, total, page, pageSize, pages: Math.ceil(total / pageSize), summary });
+});
+
+deliveriesRouter.get("/filter-options", async (_req, res) => {
+  res.json(await deliveryFilterOptions());
 });
 
 deliveriesRouter.post("/", async (req, res) => {

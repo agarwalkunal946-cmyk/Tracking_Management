@@ -3,11 +3,12 @@ import { app } from "./app.js";
 import { connectDatabase, disconnectDatabase } from "./lib/database.js";
 
 const port = Number(process.env.PORT) || 4000;
+const host = process.env.HOST || "127.0.0.1";
 
 try {
   await connectDatabase();
-  const server = app.listen(port, () => {
-    console.log(`RouteFlow API running at http://localhost:${port}`);
+  const server = app.listen(port, host, () => {
+    console.log(`RouteFlow API running at http://${host}:${port}`);
     console.log("MongoDB connected.");
   });
 

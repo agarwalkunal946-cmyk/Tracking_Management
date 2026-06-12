@@ -1,19 +1,12 @@
 import { Router } from "express";
-import { dateFilter } from "../lib/dates.js";
+import { buildDeliveryQuery, parseDeliveryFilters } from "../lib/deliveryFilters.js";
 import { deliveryPopulation } from "../lib/documents.js";
-import { objectIdSchema, parseDateRange } from "../lib/validation.js";
+import { objectIdSchema } from "../lib/validation.js";
 import { Client, Delivery, Setting, Vehicle } from "../models/index.js";
 import { requireAuth } from "../middleware/auth.js";
 
 export const reportsRouter = Router();
 reportsRouter.use(requireAuth);
-
-function range(req) {
-  const parsed = parseDateRange(req.query);
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message || "Invalid date range." };
-  const { from, to } = parsed.data;
-  return { from, to, filter: dateFilter(from, to) };
-}
 
 function validRecordId(id, res) {
   if (objectIdSchema.safeParse(id).success) return true;
@@ -91,108 +84,90 @@ function summarize(deliveries) {
   };
 }
 
-reportsRouter.get("/client/:id", async (req, res) => {
-  if (!validRecordId(req.params.id, res)) return;
-  const selectedRange = range(req);
-  if (selectedRange.error) {
-    res.status(400).json({ message: selectedRange.error });
+async function filterLabels(filters) {
+  const [client, vehicle] = await Promise.all([
+    filters.clientId ? Client.findById(filters.clientId).select("name") : null,
+    filters.vehicleId ? Vehicle.findById(filters.vehicleId).select("plateNumber") : null
+  ]);
+  return {
+    client: client?.name || "All Clients",
+    plate: vehicle?.plateNumber || "All Plates",
+    driver: filters.driverName || "All Drivers",
+    staff: filters.staffName || "All Staff",
+    receipt: filters.receipt ? `#${filters.receipt}` : "All Receipts"
+  };
+}
+
+function titleFor(type, filters) {
+  if (type === "client") return "Client Delivery Report";
+  if (type === "vehicle") return "Vehicle Trip Report";
+  if (type === "summary") return "Filtered Delivery Summary";
+  if (filters.clientId || filters.vehicleId || filters.driverName || filters.staffName || filters.receipt) {
+    return "Filtered Delivery Report";
+  }
+  return "Date Range Delivery Report";
+}
+
+async function sendReport(req, res, type = "range", overrides = {}) {
+  const parsedFilters = parseDeliveryFilters(req.query, overrides);
+  if (!parsedFilters.success) {
+    res.status(400).json({ message: parsedFilters.message || "Invalid report filters." });
     return;
   }
+
+  const filters = parsedFilters.data;
+  const query = await buildDeliveryQuery(filters);
+  const deliveries = await Delivery.find(query)
+    .populate(deliveryPopulation)
+    .sort({ deliveryDate: -1, createdAt: -1 });
+  const [settings, labels, client, vehicle] = await Promise.all([
+    reportSettings(),
+    filterLabels(filters),
+    filters.clientId ? Client.findById(filters.clientId) : null,
+    filters.vehicleId ? Vehicle.findById(filters.vehicleId) : null
+  ]);
+  const summary = summarize(deliveries);
+
+  res.json({
+    type,
+    title: titleFor(type, filters),
+    client,
+    vehicle,
+    period: { from: filters.from || undefined, to: filters.to || undefined },
+    filters,
+    filterLabels: labels,
+    ...summary,
+    totalClients: summary.clientSummary.length,
+    totalVehicles: summary.vehicleSummary.length,
+    settings,
+    deliveries
+  });
+}
+
+reportsRouter.get("/client/:id", async (req, res) => {
+  if (!validRecordId(req.params.id, res)) return;
   const client = await Client.findById(req.params.id);
   if (!client) {
     res.status(404).json({ message: "Client not found." });
     return;
   }
-  const { from, to, filter } = selectedRange;
-  const deliveries = await Delivery.find({
-    clientId: client.id,
-    ...(filter ? { deliveryDate: filter } : {})
-  }).populate(deliveryPopulation).sort({ deliveryDate: -1, createdAt: -1 });
-  const summary = summarize(deliveries);
-  res.json({
-    type: "client",
-    title: "Client Delivery Report",
-    client,
-    period: { from, to },
-    ...summary,
-    settings: await reportSettings(),
-    deliveries
-  });
+  await sendReport(req, res, "client", { clientId: req.params.id });
 });
 
 reportsRouter.get("/vehicle/:id", async (req, res) => {
   if (!validRecordId(req.params.id, res)) return;
-  const selectedRange = range(req);
-  if (selectedRange.error) {
-    res.status(400).json({ message: selectedRange.error });
-    return;
-  }
   const vehicle = await Vehicle.findById(req.params.id);
   if (!vehicle) {
     res.status(404).json({ message: "Vehicle not found." });
     return;
   }
-  const { from, to, filter } = selectedRange;
-  const deliveries = await Delivery.find({
-    vehicleId: vehicle.id,
-    ...(filter ? { deliveryDate: filter } : {})
-  }).populate(deliveryPopulation).sort({ deliveryDate: -1, createdAt: -1 });
-  const summary = summarize(deliveries);
-  res.json({
-    type: "vehicle",
-    title: "Vehicle Trip Report",
-    vehicle,
-    period: { from, to },
-    ...summary,
-    settings: await reportSettings(),
-    deliveries
-  });
+  await sendReport(req, res, "vehicle", { vehicleId: req.params.id });
 });
 
 reportsRouter.get("/range", async (req, res) => {
-  const selectedRange = range(req);
-  if (selectedRange.error) {
-    res.status(400).json({ message: selectedRange.error });
-    return;
-  }
-  const { from, to, filter } = selectedRange;
-  const deliveries = await Delivery.find(filter ? { deliveryDate: filter } : {})
-    .populate(deliveryPopulation)
-    .sort({ deliveryDate: -1, createdAt: -1 });
-  const summary = summarize(deliveries);
-  res.json({
-    type: "range",
-    title: "Date Range Delivery Report",
-    period: { from, to },
-    ...summary,
-    totalClients: new Set(deliveries.map((item) => String(item.clientId))).size,
-    totalVehicles: new Set(deliveries.map((item) => String(item.vehicleId))).size,
-    settings: await reportSettings(),
-    deliveries
-  });
+  await sendReport(req, res, "range");
 });
 
 reportsRouter.get("/grand-summary", async (req, res) => {
-  const selectedRange = range(req);
-  if (selectedRange.error) {
-    res.status(400).json({ message: selectedRange.error });
-    return;
-  }
-  const { from, to, filter } = selectedRange;
-  const [deliveries, totalClients, totalVehicles] = await Promise.all([
-    Delivery.find(filter ? { deliveryDate: filter } : {}).populate(deliveryPopulation).sort({ deliveryDate: -1, createdAt: -1 }),
-    Client.countDocuments({ active: true }),
-    Vehicle.countDocuments({ active: true })
-  ]);
-  const summary = summarize(deliveries);
-  res.json({
-    type: "summary",
-    title: "Grand Delivery Summary",
-    period: { from, to },
-    ...summary,
-    totalClients,
-    totalVehicles,
-    settings: await reportSettings(),
-    deliveries
-  });
+  await sendReport(req, res, "summary");
 });

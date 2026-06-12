@@ -17,10 +17,17 @@ import { reportsRouter } from "./routes/reports.js";
 import { vehiclesRouter } from "./routes/vehicles.js";
 
 export const app = express();
+const configuredOrigins = process.env.CLIENT_URL?.split(",").map((origin) => origin.trim()).filter(Boolean) || [];
+const allowedOrigins = new Set([
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  ...configuredOrigins
+]);
+
 app.set("trust proxy", 1);
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({
-  origin: process.env.CLIENT_URL?.split(",") || "http://localhost:5173",
+  origin: Array.from(allowedOrigins),
   credentials: true
 }));
 app.use(express.json({ limit: "5mb" }));

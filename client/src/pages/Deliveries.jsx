@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarRange, ChevronLeft, ChevronRight, Download, Filter, LoaderCircle, Pencil, Search, SlidersHorizontal, Trash2 } from "lucide-react";
+import { CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Download, Droplets, Filter, LoaderCircle, PackageCheck, Pencil, ReceiptText, RotateCcw, Search, SlidersHorizontal, Trash2, WalletCards } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, queryString } from "../api";
 import { useAuth } from "../auth";
@@ -8,7 +8,7 @@ import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { notify } from "../notify";
 import { dateInputValue, displayDateTime, playTone } from "../utils";
 import { deliveryFiltersSchema, editDeliverySchema, numericInput, pinSchema, validateForm } from "../validation";
-const initialFilters = { search: "", clientId: "", vehicleId: "", receipt: "", from: "", to: "" };
+const initialFilters = { search: "", clientId: "", vehicleId: "", driverName: "", staffName: "", receipt: "", from: "", to: "" };
 function Deliveries() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -20,6 +20,7 @@ function Deliveries() {
   const debouncedSearch = useDebouncedValue(filters.search.trim(), 300);
   const clientsQuery = useQuery({ queryKey: ["clients"], queryFn: () => api("/clients") });
   const vehiclesQuery = useQuery({ queryKey: ["vehicles"], queryFn: () => api("/vehicles") });
+  const filterOptionsQuery = useQuery({ queryKey: ["delivery-filter-options"], queryFn: () => api("/deliveries/filter-options") });
   const deliveriesQuery = useQuery({
     queryKey: ["deliveries", applied, page],
     queryFn: () => api(`/deliveries${queryString({ ...applied, page, pageSize: 25 })}`),
@@ -78,7 +79,9 @@ function Deliveries() {
   if (deliveriesQuery.isLoading) return <PageLoader />;
   if (deliveriesQuery.error) return <ErrorState message={deliveriesQuery.error.message} />;
   const hasFilters = Object.values(applied).some(Boolean);
+  const hasDraftFilters = Object.values(filters).some(Boolean);
   const searchPending = filters.search.trim() !== debouncedSearch || deliveriesQuery.isFetching;
+  const summary = deliveriesQuery.data?.summary ?? {};
   return <div className="page-stack">
       <form className="card filter-panel" onSubmit={applyFilters}>
         <div className="filter-title"><SlidersHorizontal size={18} /><strong>Find deliveries</strong><span>Search any trip in seconds</span></div>
@@ -92,15 +95,32 @@ function Deliveries() {
             {clientsQuery.data?.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
           </select>
           <select value={filters.vehicleId} onChange={(event) => setFilters({ ...filters, vehicleId: event.target.value })}>
-            <option value="">All vehicles</option>
+            <option value="">All plates</option>
             {vehiclesQuery.data?.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.plateNumber}</option>)}
           </select>
-          <label className="compact-input"><span>#</span><input type="number" min="1" step="1" placeholder="Receipt no." value={filters.receipt} onChange={(event) => setFilters({ ...filters, receipt: event.target.value })} /></label>
+          <select value={filters.driverName} onChange={(event) => setFilters({ ...filters, driverName: event.target.value })}>
+            <option value="">All drivers</option>
+            {filterOptionsQuery.data?.drivers.map((driver) => <option key={driver} value={driver}>{driver}</option>)}
+          </select>
+          <select value={filters.staffName} onChange={(event) => setFilters({ ...filters, staffName: event.target.value })}>
+            <option value="">All staff</option>
+            {filterOptionsQuery.data?.staff.map((staff) => <option key={staff} value={staff}>{staff}</option>)}
+          </select>
+          <label className="compact-input"><span>#</span><input inputMode="numeric" maxLength={30} placeholder="Receipt no." value={filters.receipt} onChange={(event) => setFilters({ ...filters, receipt: event.target.value.replace(/\D/g, "") })} /></label>
           <label className="date-filter"><span>From</span><input type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} /></label>
           <label className="date-filter"><span>To</span><input type="date" value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} /></label>
           <button className="secondary-button" type="submit"><Filter size={16} /> Apply filters</button>
+          <button className="ghost-button" type="button" onClick={clearFilters} disabled={!hasDraftFilters && !hasFilters}><RotateCcw size={16} /> Reset</button>
         </div>
       </form>
+
+      <section className="stats-grid delivery-summary-grid">
+        <SummaryCard icon={<PackageCheck />} label="Filtered trips" value={summary.totalTrips ?? 0} note={hasFilters ? "Matching records" : "All records"} accent="coral" />
+        <SummaryCard icon={<Droplets />} label="Total liters" value={`${formatNumber(summary.totalLiters)} L`} note="Filtered volume" accent="blue" />
+        <SummaryCard icon={<ReceiptText />} label="Total billed" value={formatMoney(summary.totalAmount)} note="Filtered amount" accent="gold" />
+        <SummaryCard icon={<CheckCircle2 />} label="Amount paid" value={formatMoney(summary.amountPaid)} note="Billed minus balance" accent="mint" />
+        <SummaryCard icon={<WalletCards />} label="Balance" value={formatMoney(summary.totalBalance)} note="Outstanding" accent="dark" />
+      </section>
 
       <section className="card data-card">
         <div className="card-head data-head">
@@ -110,7 +130,7 @@ function Deliveries() {
             <p>See who received each delivery and which Staff member entered it.</p>
           </div>
           <div className="head-actions">
-            {hasFilters && <button type="button" className="ghost-button" onClick={clearFilters}>Clear filters</button>}
+            {hasFilters && <button type="button" className="ghost-button" onClick={clearFilters}>Reset filters</button>}
             <button type="button" className="secondary-button" onClick={exportCsv} disabled={!deliveriesQuery.data?.deliveries.length}><Download size={16} /> Export CSV</button>
           </div>
         </div>
@@ -236,6 +256,18 @@ function DeleteDeliveryModal({ delivery, onClose, onDeleted }) {
         <div className="modal-actions"><button type="button" className="ghost-button" onClick={onClose}>Keep delivery</button><button className="danger-button" disabled={mutation.isPending || pin.length < 4}>Delete permanently</button></div>
       </form>
     </Modal>;
+}
+function SummaryCard({ icon, label, value, note, accent }) {
+  return <div className="stat-card">
+      <div className={`stat-icon ${accent}`}>{icon}</div>
+      <div><span>{label}</span><strong>{value}</strong><small>{note}</small></div>
+    </div>;
+}
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString();
+}
+function formatMoney(value) {
+  return `KES ${Number(value || 0).toLocaleString()}`;
 }
 export {
   Deliveries

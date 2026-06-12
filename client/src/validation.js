@@ -9,6 +9,11 @@ const dateRangeFields = {
   from: optionalDateSchema,
   to: optionalDateSchema
 };
+const optionalPersonFilter = z.string().trim().max(80, "Filter value is too long.");
+const receiptFilterSchema = z.string()
+  .trim()
+  .max(30, "Receipt number is too long.")
+  .refine((value) => !value || /^\d+$/.test(value), "Receipt number must contain digits only.");
 
 const phoneSchema = z.string().trim().max(30, "Phone number is too long.").refine((value) => {
   if (!value) return true;
@@ -91,27 +96,23 @@ const deliveryFiltersSchema = z.object({
   search: z.string().trim().max(100, "Search text is too long."),
   clientId: z.union([z.literal(""), objectIdSchema]),
   vehicleId: z.union([z.literal(""), objectIdSchema]),
-  receipt: z.string().refine((value) => !value || /^\d+$/.test(value) && Number(value) > 0, "Receipt number must be a positive whole number."),
+  driverName: optionalPersonFilter,
+  staffName: optionalPersonFilter,
+  receipt: receiptFilterSchema,
   ...dateRangeFields
 }).refine(({ from, to }) => !from || !to || from <= to, {
   message: "From date cannot be after To date."
 });
 
 const reportFiltersSchema = z.object({
-  type: z.enum(["client", "vehicle", "range", "summary"]),
-  clientId: z.string(),
-  vehicleId: z.string(),
+  clientId: z.union([z.literal(""), objectIdSchema]),
+  vehicleId: z.union([z.literal(""), objectIdSchema]),
+  driverName: optionalPersonFilter,
+  staffName: optionalPersonFilter,
+  receipt: receiptFilterSchema,
   ...dateRangeFields
-}).superRefine((value, context) => {
-  if (value.type === "client" && !objectIdSchema.safeParse(value.clientId).success) {
-    context.addIssue({ code: "custom", message: "Select a client." });
-  }
-  if (value.type === "vehicle" && !objectIdSchema.safeParse(value.vehicleId).success) {
-    context.addIssue({ code: "custom", message: "Select a vehicle." });
-  }
-  if (value.from && value.to && value.from > value.to) {
-    context.addIssue({ code: "custom", message: "From date cannot be after To date." });
-  }
+}).refine(({ from, to }) => !from || !to || from <= to, {
+  message: "From date cannot be after To date."
 });
 
 const settingsSchema = z.object({
