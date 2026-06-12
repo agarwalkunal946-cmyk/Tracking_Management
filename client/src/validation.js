@@ -21,6 +21,12 @@ const optionalEmailSchema = z.string().trim().max(254, "Email address is too lon
   "Enter a valid email address."
 );
 
+const requiredName = (label) => z.string().trim().min(1, `${label} is required.`).max(80, `${label} is too long.`);
+const requiredNumber = (label, options = {}) => z.union([z.number(), z.string()])
+  .transform((value) => value === "" || value === null ? NaN : Number(value))
+  .refine((value) => !Number.isNaN(value), `${label} is required.`)
+  .refine((value) => !options.integer || Number.isInteger(value), `${label} must be a whole number.`)
+  .refine((value) => value >= (options.min ?? 0), options.minMessage ?? `${label} cannot be negative.`);
 const pinSchema = z.string().regex(/^\d{4,12}$/, "Admin PIN must contain 4 to 12 digits.");
 
 const clientFormSchema = z.object({
@@ -39,6 +45,9 @@ const vehicleFormSchema = z.object({
     .regex(/^[A-Za-z0-9][A-Za-z0-9 .-]*$/, "Plate number can use letters, numbers, spaces, dots, and hyphens.")
     .transform((value) => value.toUpperCase()),
   label: z.string().trim().max(80, "Vehicle label is too long."),
+  itemSize: requiredNumber("Item size", { integer: true, min: 1, minMessage: "Item size is required." }),
+  amount: requiredNumber("Amount", { min: 1, minMessage: "Amount is required." }),
+  receiptSerialNo: z.string().trim().min(1, "Receipt serial number is required.").max(30, "Receipt serial number is too long."),
   tripCounter: z.number().int("Trip counter must be a whole number.").min(0, "Trip counter cannot be negative."),
   receiptCounter: z.number().int("Receipt counter must be a whole number.").min(0, "Receipt counter cannot be negative."),
   active: z.boolean()
@@ -63,10 +72,20 @@ const deliveryFormSchema = z.object({
   deliveryDate: z.string().refine((value) => value && !Number.isNaN(new Date(value).getTime()), "Enter a valid delivery date and time."),
   clientId: objectIdSchema,
   vehicleId: objectIdSchema,
+  driverName: requiredName("Driver"),
+  staffName: requiredName("Staff"),
+  balance: z.number().min(0, "Balance cannot be negative."),
   note: z.string().trim().max(500, "Note cannot exceed 500 characters.")
 });
 
-const editDeliverySchema = deliveryFormSchema.omit({ vehicleId: true });
+const editDeliverySchema = z.object({
+  deliveryDate: z.string().refine((value) => value && !Number.isNaN(new Date(value).getTime()), "Enter a valid delivery date and time."),
+  clientId: objectIdSchema,
+  driverName: requiredName("Driver"),
+  staffName: requiredName("Staff"),
+  balance: z.number().min(0, "Balance cannot be negative."),
+  note: z.string().trim().max(500, "Note cannot exceed 500 characters.")
+});
 
 const deliveryFiltersSchema = z.object({
   search: z.string().trim().max(100, "Search text is too long."),
@@ -97,6 +116,9 @@ const reportFiltersSchema = z.object({
 
 const settingsSchema = z.object({
   companyName: z.string().trim().min(2, "Company name must be at least 2 characters.").max(100, "Company name is too long."),
+  companyPhoneNumber: phoneSchema,
+  reporterName: z.string().trim().max(80, "Reporter name is too long."),
+  reporterTitle: z.string().trim().max(80, "Reporter title is too long."),
   soundsEnabled: z.boolean(),
   adminPin: z.union([z.literal(""), pinSchema])
 });

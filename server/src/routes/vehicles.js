@@ -12,6 +12,9 @@ vehiclesRouter.use(requireAuth);
 const vehicleSchema = z.object({
   plateNumber: plateNumberSchema,
   label: z.string().trim().max(80).optional().nullable(),
+  itemSize: z.number().int().min(1, "Item size is required."),
+  amount: z.number().min(1, "Amount is required."),
+  receiptSerialNo: z.string().trim().min(1, "Receipt serial number is required.").max(30),
   tripCounter: z.number().int().min(0).optional(),
   receiptCounter: z.number().int().min(0).optional(),
   active: z.boolean().optional()
@@ -40,7 +43,10 @@ vehiclesRouter.get("/:id/next-numbers", async (req, res) => {
   }
   res.json({
     tripNumber: vehicle.tripCounter + 1,
-    receiptNumber: vehicle.receiptCounter + 1
+    receiptNumber: vehicle.receiptCounter + 1,
+    itemSize: vehicle.itemSize ?? null,
+    amount: vehicle.amount ?? null,
+    receiptSerialNo: vehicle.receiptSerialNo ?? ""
   });
 });
 

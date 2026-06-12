@@ -3,7 +3,7 @@ import { z } from "zod";
 import { audit } from "../lib/audit.js";
 import { compareSecret, hashSecret } from "../lib/auth.js";
 import { publicUser } from "../lib/documents.js";
-import { passwordSchema, pinSchema } from "../lib/validation.js";
+import { passwordSchema, phoneSchema, pinSchema } from "../lib/validation.js";
 import { AuditLog, Delivery, Setting, User } from "../models/index.js";
 import { requireAdmin, requireAuth } from "../middleware/auth.js";
 
@@ -139,6 +139,9 @@ adminRouter.get("/settings", async (_req, res) => {
 adminRouter.put("/settings", async (req, res) => {
   const parsed = z.object({
     companyName: z.string().trim().min(2).max(100).optional(),
+    companyPhoneNumber: z.union([phoneSchema, z.literal("")]).optional(),
+    reporterName: z.string().trim().max(80).optional(),
+    reporterTitle: z.string().trim().max(80).optional(),
     soundsEnabled: z.boolean().optional(),
     adminPin: pinSchema.optional()
   }).safeParse(req.body);
@@ -148,6 +151,9 @@ adminRouter.put("/settings", async (req, res) => {
   }
   const updates = [];
   if (parsed.data.companyName) updates.push({ key: "companyName", value: parsed.data.companyName });
+  if (parsed.data.companyPhoneNumber !== undefined) updates.push({ key: "companyPhoneNumber", value: parsed.data.companyPhoneNumber });
+  if (parsed.data.reporterName !== undefined) updates.push({ key: "reporterName", value: parsed.data.reporterName });
+  if (parsed.data.reporterTitle !== undefined) updates.push({ key: "reporterTitle", value: parsed.data.reporterTitle });
   if (typeof parsed.data.soundsEnabled === "boolean") {
     updates.push({ key: "soundsEnabled", value: String(parsed.data.soundsEnabled) });
   }

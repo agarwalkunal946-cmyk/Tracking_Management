@@ -42,6 +42,9 @@ async function main() {
   await Promise.all([
     Setting.findOneAndUpdate({ key: "adminPinHash" }, { $setOnInsert: { value: pinHash } }, { upsert: true }),
     Setting.findOneAndUpdate({ key: "companyName" }, { $setOnInsert: { value: "RouteFlow Logistics" } }, { upsert: true }),
+    Setting.findOneAndUpdate({ key: "companyPhoneNumber" }, { $setOnInsert: { value: "" } }, { upsert: true }),
+    Setting.findOneAndUpdate({ key: "reporterName" }, { $setOnInsert: { value: "" } }, { upsert: true }),
+    Setting.findOneAndUpdate({ key: "reporterTitle" }, { $setOnInsert: { value: "" } }, { upsert: true }),
     Setting.findOneAndUpdate({ key: "soundsEnabled" }, { $setOnInsert: { value: "true" } }, { upsert: true })
   ]);
 

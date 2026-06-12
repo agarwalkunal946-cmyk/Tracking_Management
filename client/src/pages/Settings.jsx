@@ -9,6 +9,9 @@ import { numericInput, settingsSchema, validateForm } from "../validation";
 function Settings() {
   const queryClient = useQueryClient();
   const [companyName, setCompanyName] = useState("");
+  const [companyPhoneNumber, setCompanyPhoneNumber] = useState("");
+  const [reporterName, setReporterName] = useState("");
+  const [reporterTitle, setReporterTitle] = useState("");
   const [soundsEnabled, setSoundsEnabled] = useState(true);
   const [adminPin, setAdminPin] = useState("");
   const [restoreFile, setRestoreFile] = useState("");
@@ -18,11 +21,24 @@ function Settings() {
   useEffect(() => {
     if (settingsQuery.data) {
       setCompanyName(settingsQuery.data.settings.companyName ?? "RouteFlow Logistics");
+      setCompanyPhoneNumber(settingsQuery.data.settings.companyPhoneNumber ?? "");
+      setReporterName(settingsQuery.data.settings.reporterName ?? "");
+      setReporterTitle(settingsQuery.data.settings.reporterTitle ?? "");
       setSoundsEnabled(settingsQuery.data.settings.soundsEnabled !== "false");
     }
   }, [settingsQuery.data]);
   const settingsMutation = useMutation({
-    mutationFn: (data) => api("/admin/settings", { method: "PUT", body: { companyName: data.companyName, soundsEnabled: data.soundsEnabled, ...data.adminPin ? { adminPin: data.adminPin } : {} } }),
+    mutationFn: (data) => api("/admin/settings", {
+      method: "PUT",
+      body: {
+        companyName: data.companyName,
+        companyPhoneNumber: data.companyPhoneNumber,
+        reporterName: data.reporterName,
+        reporterTitle: data.reporterTitle,
+        soundsEnabled: data.soundsEnabled,
+        ...data.adminPin ? { adminPin: data.adminPin } : {}
+      }
+    }),
     onSuccess: () => {
       localStorage.setItem("routeflow_sounds", String(soundsEnabled));
       setAdminPin("");
@@ -63,7 +79,7 @@ function Settings() {
   }
   function save(event) {
     event.preventDefault();
-    const result = validateForm(settingsSchema, { companyName, soundsEnabled, adminPin });
+    const result = validateForm(settingsSchema, { companyName, companyPhoneNumber, reporterName, reporterTitle, soundsEnabled, adminPin });
     if (result.error) {
       notify.error(result.error);
       return;
@@ -74,6 +90,11 @@ function Settings() {
       <form className="card settings-card" onSubmit={save}>
         <div className="settings-section-head"><div className="settings-icon coral"><Building2 /></div><div><span className="eyebrow">General</span><h2>Workspace identity</h2><p>Used across reports and system screens.</p></div></div>
         <label className="field"><span>Company name</span><input minLength={2} maxLength={100} value={companyName} onChange={(event) => setCompanyName(event.target.value)} required /></label>
+        <label className="field"><span>Company phone number</span><input type="tel" maxLength={30} value={companyPhoneNumber} onChange={(event) => setCompanyPhoneNumber(event.target.value)} placeholder="Company phone for reports" /></label>
+        <div className="form-row">
+          <label className="field"><span>Prepared / Reporter name</span><input maxLength={80} value={reporterName} onChange={(event) => setReporterName(event.target.value)} placeholder="Reporter name" /></label>
+          <label className="field"><span>Reporter title / position</span><input maxLength={80} value={reporterTitle} onChange={(event) => setReporterTitle(event.target.value)} placeholder="Reporter title" /></label>
+        </div>
         <div className="settings-divider" />
         <div className="settings-section-head"><div className="settings-icon gold"><BellRing /></div><div><span className="eyebrow">Feedback</span><h2>Sounds & notifications</h2><p>Small audio cues for important actions.</p></div></div>
         <label className="toggle-row">

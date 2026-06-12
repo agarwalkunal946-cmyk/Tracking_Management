@@ -50,7 +50,7 @@ function Deliveries() {
   }
   function exportCsv() {
     const rows = deliveriesQuery.data?.deliveries ?? [];
-    const header = ["Receipt", "Date", "Delivered To", "Plate", "Trip", "Note", "Entered By Staff"];
+    const header = ["Receipt", "Date", "Delivered To", "Plate", "Trip", "Serial", "Liters", "Amount", "Balance", "Driver", "Staff", "Note", "Entered By Staff"];
     const csv = [
       header,
       ...rows.map((item) => [
@@ -59,6 +59,12 @@ function Deliveries() {
         item.client.name,
         item.vehicle.plateNumber,
         item.tripNumber,
+        item.receiptSerialNo ?? "",
+        item.itemSize ?? "",
+        item.amount ?? "",
+        item.balance ?? "",
+        item.driverName ?? "",
+        item.staffName ?? "",
         item.note ?? "",
         item.createdBy.name
       ])
@@ -112,7 +118,7 @@ function Deliveries() {
         {!deliveriesQuery.data?.deliveries.length ? <EmptyState icon={<CalendarRange />} title="No deliveries found" message="Try changing your filters or add a new delivery." /> : <>
             <div className="table-scroll">
               <table className="delivery-table">
-                <thead><tr><th>Receipt</th><th>Date & time</th><th>Delivered to</th><th>Plate</th><th>Trip</th><th>Note</th><th>Entered by Staff</th>{user?.role === "ADMIN" && <th />}</tr></thead>
+                <thead><tr><th>Receipt</th><th>Date & time</th><th>Delivered to</th><th>Plate</th><th>Trip</th><th>Serial</th><th>Liters</th><th>Amount</th><th>Balance</th><th>Driver</th><th>Staff</th><th>Note</th><th>Entered by Staff</th>{user?.role === "ADMIN" && <th />}</tr></thead>
                 <tbody>
                   {deliveriesQuery.data.deliveries.map((delivery) => <tr key={delivery.id}>
                       <td><span className="receipt-code">#{delivery.receiptNumber}</span></td>
@@ -120,6 +126,12 @@ function Deliveries() {
                       <td><strong>{delivery.client.name}</strong></td>
                       <td><span className="plate">{delivery.vehicle.plateNumber}</span></td>
                       <td><span className="trip-pill">Trip {delivery.tripNumber}</span></td>
+                      <td>{delivery.receiptSerialNo || <span className="muted">-</span>}</td>
+                      <td>{delivery.itemSize ? `${Number(delivery.itemSize).toLocaleString()} L` : <span className="muted">-</span>}</td>
+                      <td>{delivery.amount !== undefined ? `KES ${Number(delivery.amount || 0).toLocaleString()}` : <span className="muted">-</span>}</td>
+                      <td>{delivery.balance !== undefined ? `KES ${Number(delivery.balance || 0).toLocaleString()}` : <span className="muted">-</span>}</td>
+                      <td>{delivery.driverName || <span className="muted">-</span>}</td>
+                      <td>{delivery.staffName || <span className="muted">-</span>}</td>
                       <td className="note-cell">{delivery.note || <span className="muted">No note</span>}</td>
                       <td>{delivery.createdBy.name}</td>
                       {user?.role === "ADMIN" && <td><div className="row-actions">
@@ -156,6 +168,9 @@ function EditDeliveryModal({ delivery, clients, onClose, onSaved }) {
   const [clientId, setClientId] = useState("");
   const [date, setDate] = useState("");
   const [note, setNote] = useState("");
+  const [driverName, setDriverName] = useState("");
+  const [staffName, setStaffName] = useState("");
+  const [balance, setBalance] = useState("");
   const mutation = useMutation({
     mutationFn: (data) => api(`/deliveries/${delivery.id}`, { method: "PATCH", body: { ...data, deliveryDate: new Date(data.deliveryDate).toISOString() } }),
     onSuccess: () => {
@@ -169,11 +184,14 @@ function EditDeliveryModal({ delivery, clients, onClose, onSaved }) {
     setClientId(delivery.clientId);
     setDate(dateInputValue(new Date(delivery.deliveryDate)));
     setNote(delivery.note ?? "");
+    setDriverName(delivery.driverName ?? "");
+    setStaffName(delivery.staffName ?? "");
+    setBalance(String(delivery.balance ?? ""));
   }, [delivery]);
   return <Modal open={Boolean(delivery)} title={`Edit receipt #${delivery?.receiptNumber ?? ""}`} onClose={onClose}>
       <form className="modal-form" onSubmit={(event) => {
     event.preventDefault();
-    const result = validateForm(editDeliverySchema, { clientId, deliveryDate: date, note });
+    const result = validateForm(editDeliverySchema, { clientId, deliveryDate: date, note, driverName, staffName, balance: balance === "" ? NaN : Number(balance) });
     if (result.error) {
       notify.error(result.error);
       return;
@@ -182,6 +200,8 @@ function EditDeliveryModal({ delivery, clients, onClose, onSaved }) {
   }}>
         <label className="field"><span>Date & time</span><input type="datetime-local" value={date} onChange={(event) => setDate(event.target.value)} required /></label>
         <label className="field"><span>Client</span><select value={clientId} onChange={(event) => setClientId(event.target.value)} required>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
+        <div className="form-row"><label className="field"><span>Driver</span><input value={driverName} onChange={(event) => setDriverName(event.target.value)} required /></label><label className="field"><span>Staff</span><input value={staffName} onChange={(event) => setStaffName(event.target.value)} required /></label></div>
+        <label className="field"><span>Balance (KES)</span><input type="number" min="0" step="0.01" value={balance} onChange={(event) => setBalance(event.target.value)} required /></label>
         <label className="field"><span>Note</span><textarea rows={4} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} /></label>
         <div className="modal-actions"><button type="button" className="ghost-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={mutation.isPending}>Save changes</button></div>
       </form>

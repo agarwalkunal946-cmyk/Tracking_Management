@@ -2,7 +2,7 @@ import { Router } from "express";
 import { dateFilter } from "../lib/dates.js";
 import { deliveryPopulation } from "../lib/documents.js";
 import { objectIdSchema, parseDateRange } from "../lib/validation.js";
-import { Client, Delivery, Vehicle } from "../models/index.js";
+import { Client, Delivery, Setting, Vehicle } from "../models/index.js";
 import { requireAuth } from "../middleware/auth.js";
 
 export const reportsRouter = Router();
@@ -19,6 +19,76 @@ function validRecordId(id, res) {
   if (objectIdSchema.safeParse(id).success) return true;
   res.status(400).json({ message: "Select a valid record." });
   return false;
+}
+
+async function reportSettings() {
+  const defaults = {
+    companyName: "RouteFlow Logistics",
+    companyPhoneNumber: "",
+    reporterName: "",
+    reporterTitle: ""
+  };
+  const settings = await Setting.find({ key: { $in: Object.keys(defaults) } });
+  return {
+    ...defaults,
+    ...Object.fromEntries(settings.map((item) => [item.key, item.value]))
+  };
+}
+
+function money(value) {
+  return Number(value || 0);
+}
+
+function summarize(deliveries) {
+  const vehicleMap = new Map();
+  const clientMap = new Map();
+  let totalLiters = 0;
+  let totalAmount = 0;
+  let totalBalance = 0;
+
+  for (const delivery of deliveries) {
+    const liters = money(delivery.itemSize);
+    const amount = money(delivery.amount);
+    const balance = money(delivery.balance);
+    totalLiters += liters;
+    totalAmount += amount;
+    totalBalance += balance;
+
+    const vehicleKey = String(delivery.vehicleId);
+    const vehicleCurrent = vehicleMap.get(vehicleKey) || {
+      plateNumber: delivery.vehicle?.plateNumber || "Unknown",
+      totalTrips: 0,
+      totalLiters: 0,
+      totalAmount: 0
+    };
+    vehicleCurrent.totalTrips += 1;
+    vehicleCurrent.totalLiters += liters;
+    vehicleCurrent.totalAmount += amount;
+    vehicleMap.set(vehicleKey, vehicleCurrent);
+
+    const clientKey = String(delivery.clientId);
+    const clientCurrent = clientMap.get(clientKey) || {
+      name: delivery.client?.name || "Unknown",
+      totalTrips: 0,
+      totalLiters: 0,
+      totalAmount: 0
+    };
+    clientCurrent.totalTrips += 1;
+    clientCurrent.totalLiters += liters;
+    clientCurrent.totalAmount += amount;
+    clientMap.set(clientKey, clientCurrent);
+  }
+
+  return {
+    totalTrips: deliveries.length,
+    totalLiters,
+    totalAmount,
+    totalBalance,
+    amountPaid: Math.max(totalAmount - totalBalance, 0),
+    vehicleSummary: Array.from(vehicleMap.values()).sort((a, b) => b.totalTrips - a.totalTrips),
+    plateSummary: Array.from(vehicleMap.values()).sort((a, b) => b.totalTrips - a.totalTrips),
+    clientSummary: Array.from(clientMap.values()).sort((a, b) => b.totalTrips - a.totalTrips)
+  };
 }
 
 reportsRouter.get("/client/:id", async (req, res) => {
@@ -38,23 +108,14 @@ reportsRouter.get("/client/:id", async (req, res) => {
     clientId: client.id,
     ...(filter ? { deliveryDate: filter } : {})
   }).populate(deliveryPopulation).sort({ deliveryDate: -1, createdAt: -1 });
-
-  const counts = new Map();
-  for (const delivery of deliveries) {
-    const key = String(delivery.vehicleId);
-    const current = counts.get(key);
-    counts.set(key, {
-      plateNumber: delivery.vehicle.plateNumber,
-      totalTrips: (current?.totalTrips || 0) + 1
-    });
-  }
+  const summary = summarize(deliveries);
   res.json({
     type: "client",
     title: "Client Delivery Report",
     client,
     period: { from, to },
-    totalTrips: deliveries.length,
-    plateSummary: Array.from(counts.values()).sort((a, b) => b.totalTrips - a.totalTrips),
+    ...summary,
+    settings: await reportSettings(),
     deliveries
   });
 });
@@ -76,12 +137,14 @@ reportsRouter.get("/vehicle/:id", async (req, res) => {
     vehicleId: vehicle.id,
     ...(filter ? { deliveryDate: filter } : {})
   }).populate(deliveryPopulation).sort({ deliveryDate: -1, createdAt: -1 });
+  const summary = summarize(deliveries);
   res.json({
     type: "vehicle",
     title: "Vehicle Trip Report",
     vehicle,
     period: { from, to },
-    totalTrips: deliveries.length,
+    ...summary,
+    settings: await reportSettings(),
     deliveries
   });
 });
@@ -96,13 +159,15 @@ reportsRouter.get("/range", async (req, res) => {
   const deliveries = await Delivery.find(filter ? { deliveryDate: filter } : {})
     .populate(deliveryPopulation)
     .sort({ deliveryDate: -1, createdAt: -1 });
+  const summary = summarize(deliveries);
   res.json({
     type: "range",
     title: "Date Range Delivery Report",
     period: { from, to },
-    totalTrips: deliveries.length,
+    ...summary,
     totalClients: new Set(deliveries.map((item) => String(item.clientId))).size,
     totalVehicles: new Set(deliveries.map((item) => String(item.vehicleId))).size,
+    settings: await reportSettings(),
     deliveries
   });
 });
@@ -114,36 +179,20 @@ reportsRouter.get("/grand-summary", async (req, res) => {
     return;
   }
   const { from, to, filter } = selectedRange;
-  const match = filter ? { deliveryDate: filter } : {};
-  const [totalTrips, totalClients, totalVehicles, clientGroups, vehicleGroups] = await Promise.all([
-    Delivery.countDocuments(match),
+  const [deliveries, totalClients, totalVehicles] = await Promise.all([
+    Delivery.find(filter ? { deliveryDate: filter } : {}).populate(deliveryPopulation).sort({ deliveryDate: -1, createdAt: -1 }),
     Client.countDocuments({ active: true }),
-    Vehicle.countDocuments({ active: true }),
-    Delivery.aggregate([
-      { $match: match },
-      { $group: { _id: "$clientId", totalTrips: { $sum: 1 } } },
-      { $lookup: { from: "clients", localField: "_id", foreignField: "_id", as: "client" } },
-      { $unwind: { path: "$client", preserveNullAndEmptyArrays: true } },
-      { $project: { _id: 0, name: { $ifNull: ["$client.name", "Unknown"] }, totalTrips: 1 } },
-      { $sort: { totalTrips: -1 } }
-    ]),
-    Delivery.aggregate([
-      { $match: match },
-      { $group: { _id: "$vehicleId", totalTrips: { $sum: 1 } } },
-      { $lookup: { from: "vehicles", localField: "_id", foreignField: "_id", as: "vehicle" } },
-      { $unwind: { path: "$vehicle", preserveNullAndEmptyArrays: true } },
-      { $project: { _id: 0, plateNumber: { $ifNull: ["$vehicle.plateNumber", "Unknown"] }, totalTrips: 1 } },
-      { $sort: { totalTrips: -1 } }
-    ])
+    Vehicle.countDocuments({ active: true })
   ]);
+  const summary = summarize(deliveries);
   res.json({
     type: "summary",
     title: "Grand Delivery Summary",
     period: { from, to },
-    totalTrips,
+    ...summary,
     totalClients,
     totalVehicles,
-    clientSummary: clientGroups,
-    vehicleSummary: vehicleGroups
+    settings: await reportSettings(),
+    deliveries
   });
 });

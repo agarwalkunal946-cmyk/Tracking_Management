@@ -15,6 +15,18 @@ const deliverySchema = z.object({
   deliveryDate: z.iso.datetime(),
   clientId: objectIdSchema,
   vehicleId: objectIdSchema,
+  driverName: z.string().trim().min(1, "Driver is required.").max(80),
+  staffName: z.string().trim().min(1, "Staff is required.").max(80),
+  balance: z.number().min(0, "Balance cannot be negative."),
+  note: z.string().trim().max(500).optional().nullable()
+});
+
+const editDeliverySchema = z.object({
+  deliveryDate: z.iso.datetime().optional(),
+  clientId: objectIdSchema.optional(),
+  driverName: z.string().trim().min(1).max(80).optional(),
+  staffName: z.string().trim().min(1).max(80).optional(),
+  balance: z.number().min(0).optional(),
   note: z.string().trim().max(500).optional().nullable()
 });
 
@@ -59,17 +71,23 @@ deliveriesRouter.get("/", async (req, res) => {
     const pattern = new RegExp(escapeRegex(search), "i");
     const [clients, vehicles, users] = await Promise.all([
       Client.find({ name: pattern }).select("_id"),
-      Vehicle.find({ $or: [{ plateNumber: pattern }, { label: pattern }] }).select("_id"),
+      Vehicle.find({ $or: [{ plateNumber: pattern }, { label: pattern }, { receiptSerialNo: pattern }] }).select("_id"),
       User.find({ name: pattern }).select("_id")
     ]);
     query.$or = [
       { clientId: { $in: clients.map((item) => item._id) } },
       { vehicleId: { $in: vehicles.map((item) => item._id) } },
       { createdById: { $in: users.map((item) => item._id) } },
+      { driverName: pattern },
+      { staffName: pattern },
+      { receiptSerialNo: pattern },
       { note: pattern },
       ...(/^\d+$/.test(search) ? [
         { receiptNumber: Number(search) },
-        { tripNumber: Number(search) }
+        { tripNumber: Number(search) },
+        { itemSize: Number(search) },
+        { amount: Number(search) },
+        { balance: Number(search) }
       ] : [])
     ];
   }
@@ -102,12 +120,18 @@ deliveriesRouter.post("/", async (req, res) => {
   let created;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const vehicle = await Vehicle.findOneAndUpdate(
-      { _id: parsed.data.vehicleId, active: true },
+      {
+        _id: parsed.data.vehicleId,
+        active: true,
+        itemSize: { $gte: 1 },
+        amount: { $gte: 1 },
+        receiptSerialNo: { $nin: [null, ""] }
+      },
       { $inc: { tripCounter: 1, receiptCounter: 1 } },
       { returnDocument: "after" }
     );
     if (!vehicle) {
-      res.status(400).json({ message: "The selected vehicle is unavailable." });
+      res.status(400).json({ message: "The selected vehicle is unavailable or missing item size, amount, or receipt serial number." });
       return;
     }
 
@@ -117,6 +141,12 @@ deliveriesRouter.post("/", async (req, res) => {
         clientId: client.id,
         vehicleId: vehicle.id,
         note: parsed.data.note || null,
+        driverName: parsed.data.driverName,
+        staffName: parsed.data.staffName,
+        balance: parsed.data.balance,
+        itemSize: vehicle.itemSize,
+        amount: vehicle.amount,
+        receiptSerialNo: vehicle.receiptSerialNo,
         tripNumber: vehicle.tripCounter,
         receiptNumber: vehicle.receiptCounter,
         createdById: req.user.id
@@ -147,11 +177,7 @@ deliveriesRouter.post("/", async (req, res) => {
 });
 
 deliveriesRouter.patch("/:id", requireAdmin, async (req, res) => {
-  const parsed = z.object({
-    deliveryDate: z.iso.datetime().optional(),
-    clientId: objectIdSchema.optional(),
-    note: z.string().trim().max(500).optional().nullable()
-  }).safeParse(req.body);
+  const parsed = editDeliverySchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid delivery." });
     return;
@@ -173,6 +199,9 @@ deliveriesRouter.patch("/:id", requireAdmin, async (req, res) => {
   const before = delivery.toJSON();
   if (parsed.data.deliveryDate) delivery.deliveryDate = new Date(parsed.data.deliveryDate);
   if (parsed.data.clientId) delivery.clientId = parsed.data.clientId;
+  if (parsed.data.driverName) delivery.driverName = parsed.data.driverName;
+  if (parsed.data.staffName) delivery.staffName = parsed.data.staffName;
+  if (typeof parsed.data.balance === "number") delivery.balance = parsed.data.balance;
   if ("note" in parsed.data) delivery.note = parsed.data.note || null;
   await delivery.save();
   await delivery.populate(deliveryPopulation);
