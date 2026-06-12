@@ -89,11 +89,11 @@ function Dashboard() {
                 <tbody>
                   {data.recentDeliveries.map((delivery) => <tr key={delivery.id}>
                       <td><span className="receipt-code">#{delivery.receiptNumber}</span></td>
-                      <td><strong>{delivery.client.name}</strong></td>
-                      <td><span className="plate">{delivery.vehicle.plateNumber}</span></td>
+                      <td><strong>{delivery.client?.name ?? "Deleted client"}</strong></td>
+                      <td><span className="plate">{delivery.vehicle?.plateNumber ?? "Deleted vehicle"}</span></td>
                       <td>Trip {delivery.tripNumber}</td>
                       <td>{displayDateTime(delivery.deliveryDate)}</td>
-                      <td>{delivery.createdBy.name}</td>
+                      <td>{delivery.createdBy?.name ?? "Deleted user"}</td>
                     </tr>)}
                 </tbody>
               </table>

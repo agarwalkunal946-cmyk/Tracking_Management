@@ -143,8 +143,8 @@ function Deliveries() {
                   {deliveriesQuery.data.deliveries.map((delivery) => <tr key={delivery.id}>
                       <td><span className="receipt-code">#{delivery.receiptNumber}</span></td>
                       <td>{displayDateTime(delivery.deliveryDate)}</td>
-                      <td><strong>{delivery.client.name}</strong></td>
-                      <td><span className="plate">{delivery.vehicle.plateNumber}</span></td>
+                      <td><strong>{delivery.client?.name ?? "Deleted client"}</strong></td>
+                      <td><span className="plate">{delivery.vehicle?.plateNumber ?? "Deleted vehicle"}</span></td>
                       <td><span className="trip-pill">Trip {delivery.tripNumber}</span></td>
                       <td>{delivery.receiptSerialNo || <span className="muted">-</span>}</td>
                       <td>{delivery.itemSize ? `${Number(delivery.itemSize).toLocaleString()} L` : <span className="muted">-</span>}</td>
@@ -153,7 +153,7 @@ function Deliveries() {
                       <td>{delivery.driverName || <span className="muted">-</span>}</td>
                       <td>{delivery.staffName || <span className="muted">-</span>}</td>
                       <td className="note-cell">{delivery.note || <span className="muted">No note</span>}</td>
-                      <td>{delivery.createdBy.name}</td>
+                      <td>{delivery.createdBy?.name ?? "Deleted user"}</td>
                       {user?.role === "ADMIN" && <td><div className="row-actions">
                           <button title="Edit" onClick={() => setEditing(delivery)}><Pencil size={16} /></button>
                           <button title="Delete" className="danger" onClick={() => setDeleting(delivery)}><Trash2 size={16} /></button>

@@ -33,6 +33,8 @@ Open `http://localhost:5173`.
 
 `npm run dev` starts the frontend and backend together. MongoDB runs separately as a system service.
 
+`npm run db:setup` is safe to run again. If MongoDB collections were deleted, it recreates and verifies all required collections, indexes, default users, and settings without adding clients, vehicles, or deliveries. API startup runs the same repair check automatically.
+
 ## Login
 
 ```text

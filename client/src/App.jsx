@@ -14,7 +14,8 @@ const Users = lazy(() => import("./pages/Users").then((module) => ({ default: mo
 const Activity = lazy(() => import("./pages/Activity").then((module) => ({ default: module.Activity })));
 const Settings = lazy(() => import("./pages/Settings").then((module) => ({ default: module.Settings })));
 function App() {
-  const { user } = useAuth();
+  const { ready, user } = useAuth();
+  if (!ready) return <PageLoader />;
   return <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/login" element={<Login />} />

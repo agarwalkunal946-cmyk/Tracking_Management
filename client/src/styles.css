@@ -233,7 +233,15 @@ td strong { color: #313234; }
 .filters-grid select, .filters-grid input { min-height: 38px; }
 .search-field { display: flex; align-items: center; gap: 8px; border: 1px solid #dedad3; border-radius: 9px; padding: 0 11px; background: #fff; }
 .search-field svg { width: 16px; color: #a4a29d; flex: 0 0 auto; }
-.search-field input { border: 0 !important; min-height: 36px; padding: 0 !important; box-shadow: none !important; }
+.search-field input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  border: 0 !important;
+  min-height: 36px;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
 .compact-input { display: flex; align-items: center; border: 1px solid #dedad3; border-radius: 9px; padding-left: 10px; }
 .compact-input span { color: var(--coral); font-weight: 700; }
 .compact-input input { border: 0 !important; box-shadow: none !important; }

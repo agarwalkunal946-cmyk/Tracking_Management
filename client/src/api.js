@@ -24,6 +24,7 @@ async function api(path, options = {}) {
     if (response.status === 401) {
       localStorage.removeItem("routeflow_token");
       localStorage.removeItem("routeflow_user");
+      window.dispatchEvent(new Event("routeflow:unauthorized"));
     }
     throw new ApiError(data.message ?? "Request failed.", response.status);
   }

@@ -1,15 +1,17 @@
 import "dotenv/config";
 import { app } from "./app.js";
 import { connectDatabase, disconnectDatabase } from "./lib/database.js";
+import { ensureDatabaseSetup } from "./lib/setup.js";
 
 const port = Number(process.env.PORT) || 4000;
 const host = process.env.HOST || "127.0.0.1";
 
 try {
   await connectDatabase();
+  await ensureDatabaseSetup();
   const server = app.listen(port, host, () => {
     console.log(`RouteFlow API running at http://${host}:${port}`);
-    console.log("MongoDB connected.");
+    console.log("MongoDB connected and setup verified.");
   });
 
   async function shutdown() {
